@@ -1,0 +1,78 @@
+version: "3"
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: site-frontend
+    command: serve -s build -l 3000
+    restart: unless-stopped
+    networks:
+      - site-network
+
+  api:
+    build: ./api
+    container_name: site-api
+    command: npm run start
+    restart: unless-stopped
+    environment:
+      - PORT=3001
+      - MONGO_URL=mongodb://api_db:27017/api
+      - AUTH_API_URL=http://auth:3002/api
+    depends_on:
+      - api_db
+    networks:
+      - site-network
+
+  auth:
+    build: ./auth
+    container_name: site-auth
+    command: npm run start
+    restart: unless-stopped
+    environment:
+      - PORT=3002
+      - MONGO_URL=mongodb://auth_db:27017/auth
+      - API_URL=http://api:3001/api
+    depends_on:
+      - auth_db
+    networks:
+      - site-network
+
+  api_db:
+    image: mongo:latest
+    container_name: site-api-db
+    volumes:
+      - mongodb_api:/data/db
+    networks:
+      - site-network
+
+  auth_db:
+    image: mongo:latest
+    container_name: site-auth-db
+    volumes:
+      - mongodb_auth:/data/db
+    networks:
+      - site-network
+
+  nginx:
+    image: nginx:stable-alpine
+    container_name: site-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf.prod:/etc/nginx/conf.d/nginx.conf
+    depends_on:
+      - frontend
+      - api
+      - auth
+    networks:
+      - site-network
+
+volumes:
+  mongodb_api:
+  mongodb_auth:
+
+networks:
+  site-network:
+    driver: bridge
